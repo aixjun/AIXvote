@@ -15,3 +15,10 @@ bun.lockb
 # os / editor
 .DS_Store
 *.log
+
+# 공개 범위 = 청중 프론트(/docs)만 ("docs만" 결정 2026-07-07).
+# 백엔드/DB/템플릿/실행스크립트는 로컬·hub 전용 — public repo 미공개 (실수 add 방지).
+/backend/
+/db/
+/frontend/
+/run-aixvote.sh
