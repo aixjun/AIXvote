@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AIXvote — 투표</title>
+  <link rel="stylesheet" href="css/app.css" />
+</head>
+<body>
+  <div class="wrap">
+    <h1 id="title">투표</h1>
+    <p class="sub">영역별로 지정된 팀 수만큼 선택 후 제출하세요.</p>
+    <div id="msg"></div>
+    <div id="areas"></div>
+    <button id="submit">투표 제출</button>
+  </div>
+  <script src="js/config.js"></script>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const msg = (t, cls) => { $("msg").innerHTML = t ? `<div class="msg ${cls}">${t}</div>` : ""; };
+    const token = sessionStorage.getItem("aix_token");
+    if (!token) location.href = `index.html${location.search}`;
+    let AREAS = [];
+
+    function render(data) {
+      $("title").textContent = data.title || "투표";
+      const byArea = {};
+      for (const t of data.teams) (byArea[t.area_id] ||= []).push(t);
+      $("areas").innerHTML = data.areas.map(ar => `
+        <div class="card" data-area="${ar.id}" data-need="${ar.select_count}">
+          <p class="area-title">${ar.name}</p>
+          <p class="area-hint">${ar.select_count}팀 선택 · 시상: ${ar.award_labels.join(", ")}</p>
+          ${(byArea[ar.id]||[]).map(t => `
+            <label class="team">
+              <input type="checkbox" value="${t.id}" data-area="${ar.id}" />
+              <span><strong>${t.team_name ? t.team_name+" · " : ""}${t.department}</strong>
+              <span class="dept">${t.presentation}</span></span>
+            </label>`).join("")}
+        </div>`).join("");
+      AREAS = data.areas;
+      // 선택수 제한
+      $("areas").addEventListener("change", (e) => {
+        const box = e.target.closest(".card");
+        const need = +box.dataset.need;
+        const checked = box.querySelectorAll("input:checked");
+        if (checked.length > need) { e.target.checked = false; msg(`이 영역은 최대 ${need}팀입니다`, "err"); }
+        else msg("", "");
+      });
+    }
+
+    async function load() {
+      try {
+        const r = await fetch(`${AIX.API_BASE}/api/events/${AIX.EVENT_SLUG}/ballot`, { headers: { authorization: `Bearer ${token}` } });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.error || "불러오기 실패");
+        render(d);
+      } catch (e) { msg(e.message, "err"); }
+    }
+
+    $("submit").onclick = async () => {
+      const selections = AREAS.map(ar => {
+        const box = document.querySelector(`.card[data-area="${ar.id}"]`);
+        const ids = [...box.querySelectorAll("input:checked")].map(i => +i.value);
+        return { area_id: ar.id, team_ids: ids, need: ar.select_count };
+      });
+      const bad = selections.find(s => s.team_ids.length !== s.need);
+      if (bad) return msg("각 영역에서 지정된 팀 수를 정확히 선택하세요", "err");
+      $("submit").disabled = true; msg("제출 중…", "ok");
+      try {
+        const r = await fetch(`${AIX.API_BASE}/api/events/${AIX.EVENT_SLUG}/vote`, {
+          method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+          body: JSON.stringify({ selections: selections.map(({area_id, team_ids}) => ({area_id, team_ids})) }),
+        });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.error || "제출 실패");
+        $("areas").innerHTML = ""; $("submit").style.display = "none";
+        msg("투표가 완료되었습니다. 감사합니다!", "ok");
+        sessionStorage.removeItem("aix_token");
+      } catch (e) { msg(e.message, "err"); $("submit").disabled = false; }
+    };
+    load();
+  </script>
+</body>
+</html>
