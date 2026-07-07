@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AIXvote — 로그인</title>
+  <link rel="stylesheet" href="css/app.css" />
+</head>
+<body>
+  <div class="wrap">
+    <h1 id="title">투표 로그인</h1>
+    <p class="sub">사번과 이름으로 접속하세요.</p>
+    <div class="card">
+      <div id="msg"></div>
+      <div class="field"><span>사번</span><input id="empId" type="text" autocomplete="off" inputmode="numeric" /></div>
+      <div class="field"><span>이름</span><input id="name" type="text" autocomplete="off" /></div>
+      <button id="btn">입장</button>
+    </div>
+  </div>
+  <script src="js/config.js"></script>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const msg = (t, cls) => { $("msg").innerHTML = t ? `<div class="msg ${cls}">${t}</div>` : ""; };
+
+    $("btn").onclick = async () => {
+      const empId = $("empId").value.trim(), name = $("name").value.trim();
+      if (!empId || !name) return msg("사번과 이름을 입력하세요", "err");
+      $("btn").disabled = true; msg("확인 중…", "ok");
+      try {
+        const r = await fetch(`${AIX.API_BASE}/api/auth/login`, {
+          method: "POST", headers: { "content-type": "application/json" },
+          body: JSON.stringify({ slug: AIX.EVENT_SLUG, empId, name }),
+        });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.error || "로그인 실패");
+        sessionStorage.setItem("aix_token", d.token);
+        sessionStorage.setItem("aix_title", d.title || "");
+        if (d.has_voted) return msg("이미 투표를 완료하셨습니다.", "ok"), void ($("btn").disabled = true);
+        location.href = `vote.html${location.search}`;
+      } catch (e) { msg(e.message, "err"); $("btn").disabled = false; }
+    };
+  </script>
+</body>
+</html>

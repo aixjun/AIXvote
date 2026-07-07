@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AIXvote — 결과</title>
+  <link rel="stylesheet" href="css/app.css" />
+  <style>
+    .award { display:inline-block; background:var(--accent); color:#fff; font-size:.72rem; font-weight:700; padding:2px 8px; border-radius:8px; margin-left:6px; }
+    .award.second { background:#8a6d3b; }
+    .rank { display:flex; justify-content:space-between; align-items:center; padding:8px 10px; border:1px solid var(--line); border-radius:8px; margin:6px 0; }
+    .rank.win { border-color:var(--accent); background:rgba(91,140,255,.08); }
+    .votes { font-weight:700; color:var(--accent); }
+    .rank .meta { color:var(--muted); font-size:.78rem; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1 id="title">투표 결과</h1>
+    <div class="card">
+      <div class="field"><span>관리자 토큰</span><input id="admtok" type="text" /></div>
+      <button id="load">결과 불러오기</button>
+    </div>
+    <div id="msg"></div>
+    <div id="out"></div>
+  </div>
+  <script src="js/config.js"></script>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const msg = (t, cls) => { $("msg").innerHTML = t ? `<div class="msg ${cls}">${t}</div>` : ""; };
+    $("admtok").value = sessionStorage.getItem("aix_admtok") || "";
+
+    function render(data) {
+      $("out").innerHTML = data.result.map(area => {
+        const awardedIds = new Set(area.awarded.map(a => a.team_id));
+        const awardOf = Object.fromEntries(area.awarded.map(a => [a.team_id, a.award]));
+        return `<div class="card">
+          <p class="area-title">${area.area}</p>
+          <p class="area-hint">시상: ${area.award_labels.join(", ")}</p>
+          ${area.ranked.map((t, i) => `
+            <div class="rank ${awardedIds.has(t.team_id) ? "win" : ""}">
+              <div>${t.team_name ? "<b>"+t.team_name+"</b> · " : ""}${t.department}
+                ${awardedIds.has(t.team_id) ? `<span class="award ${awardOf[t.team_id]==="우수"?"second":""}">${awardOf[t.team_id]}</span>` : ""}
+                <div class="meta">${t.presentation}</div></div>
+              <div class="votes">${t.votes}표</div>
+            </div>`).join("")}
+        </div>`;
+      }).join("");
+    }
+
+    $("load").onclick = async () => {
+      const tok = $("admtok").value.trim();
+      sessionStorage.setItem("aix_admtok", tok);
+      msg("불러오는 중…", "ok");
+      try {
+        const r = await fetch(`${AIX.API_BASE}/api/admin/events/${AIX.EVENT_SLUG}/result`, { headers: { authorization: `Bearer ${tok}` } });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.error || "실패");
+        $("title").textContent = `결과 — ${d.slug}`;
+        render(d); msg("", "");
+      } catch (e) { msg(e.message, "err"); }
+    };
+    if ($("admtok").value) $("load").click();
+  </script>
+</body>
+</html>
